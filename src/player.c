@@ -7,8 +7,8 @@
 #include "player.h"
 #include "aacdec.h"                                     /* Helix AAC decoder */
 
-#define RING     (160 * 1024)
-#define CHUNK    (64 * 1024)
+#define RING     (112 * 1024)
+#define CHUNK    (48 * 1024)
 #define FRAMEMAX 2048
 #define BOX_MAX  (24 * 1024)
 
@@ -203,8 +203,8 @@ void player_play(const char *url, long long size) {
     the_size = size; wr = rd = 0; net_done = 0; whole_file = 0; played = 0; err_msg = "";
     state = PL_BUFFERING;
     int g = gen;
-    th_dec = wup_thread_start(dec_thread, (void *)(intptr_t)g, 32 * 1024, 0);
-    th_net = wup_thread_start(net_thread, (void *)(intptr_t)g, 32 * 1024, 0);
+    th_dec = wup_thread_start(dec_thread, (void *)(intptr_t)g, 24 * 1024, 0);
+    th_net = wup_thread_start(net_thread, (void *)(intptr_t)g, 24 * 1024, 0);
     if (th_dec < 0 || th_net < 0) { gen++; err_msg = "Could not start the player"; state = PL_ERROR; }
 }
 
