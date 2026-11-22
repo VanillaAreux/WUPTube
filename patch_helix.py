@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
-"""Enable Helix's portable fixed-point C routines for libwup's ARM target."""
+"""Prepare the Helix AAC sources for libwup's ARM target (idempotent; runs before the app is compiled)."""
 from pathlib import Path
 
-header = Path('../../third_party/helix-aac/src/libhelix-aac/assembly.h')
-source = header.read_text()
+lib = Path('../../third_party/helix-aac/src/libhelix-aac')
+
+# 1. portable fixed-point C routines instead of x86/ESP-only code
+header = lib / 'assembly.h'
+text = header.read_text()
 old = '#elif defined(ARDUINO) || defined(ESP32)'
 new = '#elif defined(__arm__) || defined(__aarch64__) || defined(ARDUINO) || defined(ESP32)'
-if new not in source:
-    if old not in source:
+if new not in text:
+    if old not in text:
         raise SystemExit('Could not find the expected Helix platform-selection block in assembly.h')
-    source = source.replace(old, new, 1)
-    header.write_text(source)
-print('Helix: enabled portable fixed-point C implementation for ARM')
+    header.write_text(text.replace(old, new, 1))
+print('Helix: portable fixed-point C implementation enabled for ARM')
 
-# Helix's SBR implementation calls printf in its error path but does not include
-# the declaration. Clang treats the implicit declaration as an error in C99+.
-sbr = Path('../../third_party/helix-aac/src/libhelix-aac/sbr.c')
-sbr_source = sbr.read_text()
-if '#include <stdio.h>' not in sbr_source:
-    sbr.write_text('#include <stdio.h>\n' + sbr_source)
-print('Helix: added stdio declaration for SBR diagnostics')
+# 2. every Helix .c file that calls printf gets <stdio.h> (clang rejects implicit declarations)
+for f in sorted(lib.glob('*.c')):
+    src = f.read_text()
+    if 'printf(' in src and '#include <stdio.h>' not in src:
+        f.write_text('#include <stdio.h>\n' + src)
+        print('Helix: added <stdio.h> to', f.name)
