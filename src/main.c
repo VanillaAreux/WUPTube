@@ -1,6 +1,7 @@
 /* WUP Tube Music: search and play YouTube Music audio on the Wii U GamePad, on the pad itself (Wi-Fi + HTTPS),
  * through a Piped server. Hotkeys on every screen: PLUS pause/resume, R next, L previous. */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "wup.h"
 #include "wup_kit.h"
@@ -161,7 +162,28 @@ static void tick(lv_timer_t *t) {
 
 static void before_ui_request(void) { if (player_whole_file()) player_stop(); }
 
+/* ---- start-up diagnostics: a plain splash (no LVGL) so a failure to start can be seen on the pad */
+static unsigned heap_probe_kb(void) {                  /* the biggest block malloc can give, in 16 KB steps */
+    unsigned best = 0;
+    for (unsigned s = 16; s <= 700; s += 16) { void *p = malloc((size_t)s * 1024); if (!p) break; free(p); best = s; }
+    return best;
+}
+static void splash(const char *l1, const char *l2) {
+    wup_screen();
+    gfx_vgrad24(0, 0, GFX_W, GFX_H, C24(24, 44, 96), C24(6, 10, 30));
+    gfx_text_c(&font_big, GFX_W / 2, 190, l1, RGB(255, 255, 255));
+    gfx_text_c(&font_body, GFX_W / 2, 260, l2, RGB(190, 200, 225));
+    gfx_present_all();
+}
+
 int main(void) {
+    char info[96];
+    unsigned heap = heap_probe_kb();
+    snprintf(info, sizeof info, "Free memory: %u KB%s", heap, heap < 250 ? "  (low!)" : "");
+    splash("WUP Tube Music", info);
+    while (wup_buttons() & WUP_B) wup_sleep(16);          /* not a B still held from the menu */
+    wup_sleep(1500);
+    uint32_t t0 = wup_us();
     api_load_cfg();
     wup_net_init();
     api_idle = kit_idle;
@@ -177,5 +199,9 @@ int main(void) {
         }
     }
     player_stop();
+    if ((uint32_t)(wup_us() - t0) < 4000000u) {            /* ended at once: say so, then go back to the menu */
+        splash("The app ended right away", "B at the first screen closes it. Press B to return.");
+        while (!(wup_buttons() & WUP_B)) wup_sleep(16);
+    }
     return 0;
 }
