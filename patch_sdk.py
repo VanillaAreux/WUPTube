@@ -15,7 +15,7 @@ if os.path.abspath(dst) != here:
 p = os.path.join(lib, 'tools', 'deps.py'); s = open(p).read()
 if 'helix-aac' not in s:
     entry = ("    # AAC decoding for WUP Tube Music (Helix, RealNetworks: its own licence, see the repository)\n"
-             "    'helix-aac': (os.path.join(paths.THIRD, 'helix-aac'), 'https://github.com/pschatzmann/arduino-libhelix.git', 'main', 'RPSL/RCSL', ['src/libhelix-aac']),\n")
+             "    'helix-aac': (os.path.join(paths.THIRD, 'helix-aac'), 'https://github.com/pschatzmann/arduino-libhelix.git', 'main', 'RPSL/RCSL', ['src/libhelix-aac', 'src/utils']),\n")
     s = s.replace("    'compiler-rt':", entry + "    'compiler-rt':", 1)
     open(p, 'w').write(s)
 
