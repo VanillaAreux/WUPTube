@@ -1,0 +1,41 @@
+name: Build WUP Tube Music
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out WUPTube
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang lld llvm git ninja-build
+          python -m pip install --upgrade pip
+          python -m pip install pillow meson
+
+      - name: Check out libwup SDK
+        run: git clone --depth 1 https://github.com/ravensclawx/wup-homebrew.git ../wup-homebrew
+
+      - name: Prepare the SDK and app
+        run: python3 patch_sdk.py ../wup-homebrew
+
+      - name: Build .wup
+        working-directory: ../wup-homebrew/libwup
+        run: python3 tools/wupbuild.py examples/wup-tube
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wup-tube-music
+          path: ../wup-homebrew/libwup/build/apps/wup_tube_music.wup
+          if-no-files-found: error
+          retention-days: 1
