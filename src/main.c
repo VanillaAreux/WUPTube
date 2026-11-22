@@ -17,6 +17,7 @@ static char query[96];
 static int sstate;                         /* search screen: 0 working, 1 done, 2 failed */
 static int sresult;                        /* its count, or the error */
 static int np_state;                       /* now playing: 0 loading, 1 playing, 2 failed */
+static int net_ready;                      /* initialise the network only when the user searches */
 static char np_err[96];
 static int pending = -1;                   /* a track to start, done in the main loop */
 static lv_obj_t *np_title, *np_info;
@@ -86,6 +87,12 @@ static void on_track(lv_event_t *e) {
 
 /* ---- screens */
 static void do_search(void) {
+    /* Bring up sockets on demand. A missing Wi-Fi connection must not prevent the UI from opening. */
+    if (!net_ready) {
+        int nr = wup_net_init();
+        if (nr < 0) { sresult = nr; sstate = 2; kit_show(); return; }
+        net_ready = 1;
+    }
     track_t *t = tracks; int n = api_search(query, t, MAXT);
     sresult = n; sstate = n < 0 ? 2 : 1;
     if (n >= 0) { ntracks = n; cur = -1; }
@@ -162,32 +169,25 @@ static void tick(lv_timer_t *t) {
 
 static void before_ui_request(void) { if (player_whole_file()) player_stop(); }
 
-/* ---- start-up diagnostics: a plain splash (no LVGL) so a failure to start can be seen on the pad */
-static unsigned heap_probe_kb(void) {                  /* the biggest block malloc can give, in 16 KB steps */
-    unsigned best = 0;
-    for (unsigned s = 16; s <= 700; s += 16) { void *p = malloc((size_t)s * 1024); if (!p) break; free(p); best = s; }
-    return best;
-}
-static void splash(const char *l1, const char *l2) {
+/* ---- start-up splash: draw and wait for the first frame before building the LVGL UI */
+static void splash(void) {
     wup_screen();
     gfx_vgrad24(0, 0, GFX_W, GFX_H, C24(24, 44, 96), C24(6, 10, 30));
-    gfx_text_c(&font_big, GFX_W / 2, 190, l1, RGB(255, 255, 255));
-    gfx_text_c(&font_body, GFX_W / 2, 260, l2, RGB(190, 200, 225));
+    gfx_text_c(&font_big, GFX_W / 2, 190, "WUP Tube Music", RGB(255, 255, 255));
+    gfx_text_c(&font_body, GFX_W / 2, 260, "Starting...", RGB(190, 200, 225));
     gfx_present_all();
+    wup_screen_hold();
 }
 
 int main(void) {
-    char info[96];
-    unsigned heap = heap_probe_kb();
-    snprintf(info, sizeof info, "Free memory: %u KB%s", heap, heap < 250 ? "  (low!)" : "");
-    splash("WUP Tube Music", info);
-    while (wup_buttons() & WUP_B) wup_sleep(16);          /* not a B still held from the menu */
-    wup_sleep(1500);
-    uint32_t t0 = wup_us();
+    splash();
+    while (wup_buttons() & WUP_B) wup_sleep(16); /* discard B held while leaving the menu */
+
     api_load_cfg();
-    wup_net_init();
     api_idle = kit_idle;
     api_before = before_ui_request;
+
+    /* Do not start networking or allocate a large diagnostic block before LVGL is visible. */
     kit_start(home);
     lv_timer_create(tick, 100, NULL);
     while (kit_step()) {
@@ -199,9 +199,5 @@ int main(void) {
         }
     }
     player_stop();
-    if ((uint32_t)(wup_us() - t0) < 4000000u) {            /* ended at once: say so, then go back to the menu */
-        splash("The app ended right away", "B at the first screen closes it. Press B to return.");
-        while (!(wup_buttons() & WUP_B)) wup_sleep(16);
-    }
     return 0;
 }
