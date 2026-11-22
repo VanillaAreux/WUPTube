@@ -32,10 +32,16 @@ jobs:
         working-directory: ../wup-homebrew/libwup
         run: python3 tools/wupbuild.py examples/wup-tube
 
+      - name: Collect the .wup
+        run: |
+          mkdir -p dist
+          cp ../wup-homebrew/libwup/build/apps/wup_tube_music.wup dist/
+          ls -l dist
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: wup-tube-music
-          path: ../wup-homebrew/libwup/build/apps/wup_tube_music.wup
+          path: dist/wup_tube_music.wup
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
