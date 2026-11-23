@@ -44,7 +44,7 @@ static void open_text(const char *title, char *dst, size_t cap, void (*done)(voi
     kit_push(text_screen);
 }
 static void text_screen(lv_obj_t *scr) {
-    lv_obj_t *l = kit_page(scr, text_title, "B Cancel    A Key    Done: the check mark");
+    lv_obj_t *l = kit_page(scr, text_title, "B Cancel    A Type    Tap ✓ to submit");
     text_ta = lv_textarea_create(l);
     lv_textarea_set_one_line(text_ta, true);
     lv_textarea_set_text(text_ta, text_dst);
@@ -115,8 +115,9 @@ static void on_np(lv_event_t *e) { (void)e; if (cur >= 0) kit_push(np_screen); }
 static void on_settings(lv_event_t *e) { (void)e; kit_push(settings_screen); }
 
 static void home(lv_obj_t *scr) {
-    lv_obj_t *l = kit_page(scr, "WUP Tube Music", "B Exit    A Select    +  Pause    L R  Skip");
+    lv_obj_t *l = kit_page(scr, "WUP Tube Music", "B Exit    A Select    + Pause");
     kit_row(l, NULL, "Search", NULL, on_search, NULL);
+    kit_note(l, "While playing: L = previous track, R = next track, + = pause/resume.");
     if (cur >= 0) kit_row(l, NULL, "Now playing", tracks[cur].title, on_np, NULL);
     kit_row(l, NULL, "Server", api_base, on_settings, NULL);
     if (!wup_time_known()) kit_note(l, "No clock yet: join Wi-Fi in the Homebrew Menu first (HTTPS needs the date).");
@@ -133,7 +134,7 @@ static void settings_screen(lv_obj_t *scr) {
 static void np_toggle(void) { player_pause(player_state() != PL_PAUSED); }
 static void np_gone(lv_event_t *e) { (void)e; np_title = np_info = NULL; }
 static void np_screen(lv_obj_t *scr) {
-    lv_obj_t *l = kit_page(scr, "Now playing", "B Back    A Pause    L Prev    R Next");
+    lv_obj_t *l = kit_page(scr, "Now playing", "B Back    A Pause    L Prev  R Next");
     kit_on_a(np_toggle);
     if (np_state == 0) { kit_busy(l, "Loading", cur >= 0 ? tracks[cur].title : "", NULL); return; }
     if (np_state == 2) { kit_outcome(l, "Could not play", np_err); return; }

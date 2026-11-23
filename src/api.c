@@ -126,7 +126,7 @@ int api_search(const char *q, track_t *out, int max) {
     char enc[160], url[400];
     urlenc(q, enc, sizeof enc);
     snprintf(url, sizeof url, "%s/search?q=%s&filter=music_songs", api_base, enc);
-    size_t cap = 56 * 1024, len = 0;
+    size_t cap = 20 * 1024, len = 0; /* keep search parsing within the Wii U heap budget */
     char *buf = malloc(cap);
     if (!buf) return WUP_HTTPS_ENOMEM;
     int r = fetch_array(url, "\"items\":[", buf, cap, &len);
