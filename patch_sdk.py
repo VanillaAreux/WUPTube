@@ -20,9 +20,26 @@ if 'helix-aac' not in s:
     open(p, 'w').write(s)
 
 p = os.path.join(lib, 'src', 'https.c'); s = open(p).read()
-for a, b in [('malloc(1024), *head', 'malloc(2048), *head'), ('snprintf(where, 1024, "%s", url)', 'snprintf(where, 2048, "%s", url)'),
-             ('char next[1024];', 'char next[2048];'), ('snprintf(where, 1024, "%s", next)', 'snprintf(where, 2048, "%s", next)')]:
-    s = s.replace(a, b)
+# Keep the redirect URL at 2 KB, but move the HTTPS client's large scratch
+# allocations out of the small, fragmentation-prone app heap. The client is
+# already global-state and WUPTube serializes all HTTPS requests.
+s = s.replace("""    char *where = malloc(1024), *head = malloc(HEAD_MAX);
+    unsigned char *iobuf = malloc(BR_SSL_BUFSIZE_MONO);       /* (half duplex: a request, then its response) */
+    if (!where || !head || !iobuf) { free(where); free(head); free(iobuf); return WUP_HTTPS_ENOMEM; }
+    snprintf(where, 1024, "%s", url);""", """    static char where[2048], head[HEAD_MAX];
+    static unsigned char iobuf[BR_SSL_BUFSIZE_MONO];          /* one request at a time; avoid heap allocation */
+    snprintf(where, sizeof where, "%s", url);""")
+s = s.replace("""            char next[1024];
+            if (loc->value_len >= 8 && !strncmp(loc->value, "https://", 8)) snprintf(next, sizeof next, "%.*s", (int)loc->value_len, loc->value);
+            else snprintf(next, sizeof next, "https://%s:%d%.*s", host, port, (int)loc->value_len, loc->value);
+            snprintf(where, 1024, "%s", next);""", """            char next[2048];
+            if (loc->value_len >= 8 && !strncmp(loc->value, "https://", 8)) snprintf(next, sizeof next, "%.*s", (int)loc->value_len, loc->value);
+            else snprintf(next, sizeof next, "https://%s:%d%.*s", host, port, (int)loc->value_len, loc->value);
+            snprintf(where, sizeof where, "%s", next);""")
+s = s.replace("""    free(where); free(head); free(iobuf);
+    return status;""", """    return status;""")
+if 'static unsigned char iobuf[BR_SSL_BUFSIZE_MONO]' not in s:
+    raise SystemExit('Could not apply static HTTPS buffers: expected SDK https.c allocation block not found')
 open(p, 'w').write(s)
 
 # The large-app loader runs before main(). Do not allocate the compressed
