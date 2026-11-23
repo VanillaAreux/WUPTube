@@ -9,6 +9,8 @@ char api_base[128] = "https://pipedapi.kavin.rocks";
 void (*api_idle)(void);
 void (*api_before)(void);
 static int net_sem;
+/* Reused for the one-at-a-time API request; keep large JSON storage off the fragmented heap. */
+static char api_json[20 * 1024];
 #define CFG "tube.cfg"
 
 void api_load_cfg(void) {
@@ -126,11 +128,10 @@ int api_search(const char *q, track_t *out, int max) {
     char enc[160], url[400];
     urlenc(q, enc, sizeof enc);
     snprintf(url, sizeof url, "%s/search?q=%s&filter=music_songs", api_base, enc);
-    size_t cap = 20 * 1024, len = 0; /* keep search parsing within the Wii U heap budget */
-    char *buf = malloc(cap);
-    if (!buf) return WUP_HTTPS_ENOMEM;
+    size_t cap = sizeof api_json, len = 0;
+    char *buf = api_json;
     int r = fetch_array(url, "\"items\":[", buf, cap, &len);
-    if (r) { free(buf); return r; }
+    if (r) return r;
     int n = 0; const char *p = buf + 1, *end = buf + len, *el; size_t el_n;
     while (n < max && (p = json_arr_next(p, end, &el, &el_n))) {
         track_t *t = &out[n];
@@ -143,18 +144,16 @@ int api_search(const char *q, track_t *out, int max) {
         t->dur = (int)json_int(el, el_n, "duration", 0);
         n++;
     }
-    free(buf);
     return n;
 }
 
 int api_stream(const char *id, char *url, size_t n, long long *size) {
     char u[400];
     snprintf(u, sizeof u, "%s/streams/%s", api_base, id);
-    size_t cap = 24 * 1024, len = 0;
-    char *buf = malloc(cap);
-    if (!buf) return WUP_HTTPS_ENOMEM;
+    size_t cap = sizeof api_json, len = 0;
+    char *buf = api_json;
     int r = fetch_array(u, "\"audioStreams\":[", buf, cap, &len);
-    if (r) { free(buf); return r; }
+    if (r) return r;
     const char *p = buf + 1, *end = buf + len, *el; size_t el_n;
     long best = -1; int found = 0;
     while ((p = json_arr_next(p, end, &el, &el_n))) {
@@ -170,6 +169,5 @@ int api_stream(const char *id, char *url, size_t n, long long *size) {
             *size = json_int(el, el_n, "contentLength", 0);
         }
     }
-    free(buf);
     return found ? 0 : -102;
 }
